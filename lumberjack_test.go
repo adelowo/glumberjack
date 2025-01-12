@@ -1,4 +1,4 @@
-package lumberjack
+package glumberjack
 
 import (
 	"bytes"
@@ -112,7 +112,7 @@ func TestMakeLogDir(t *testing.T) {
 func TestDefaultFilename(t *testing.T) {
 	currentTime = fakeTime
 	dir := os.TempDir()
-	filename := filepath.Join(dir, filepath.Base(os.Args[0])+"-lumberjack.log")
+	filename := filepath.Join(dir, filepath.Base(os.Args[0])+"-glumberjack.log")
 	defer os.Remove(filename)
 	l := &Logger{}
 	defer l.Close()
@@ -133,8 +133,9 @@ func TestAutoRotate(t *testing.T) {
 
 	filename := logFile(dir)
 	l := &Logger{
-		Filename: filename,
-		MaxSize:  10,
+		Filename:       filename,
+		MaxSize:        10,
+		backupNameFunc: defaultBackupFunc(false),
 	}
 	defer l.Close()
 	b := []byte("boo!")
@@ -170,8 +171,9 @@ func TestFirstWriteRotate(t *testing.T) {
 
 	filename := logFile(dir)
 	l := &Logger{
-		Filename: filename,
-		MaxSize:  10,
+		Filename:       filename,
+		MaxSize:        10,
+		backupNameFunc: defaultBackupFunc(false),
 	}
 	defer l.Close()
 
@@ -201,9 +203,10 @@ func TestMaxBackups(t *testing.T) {
 
 	filename := logFile(dir)
 	l := &Logger{
-		Filename:   filename,
-		MaxSize:    10,
-		MaxBackups: 1,
+		Filename:       filename,
+		MaxSize:        10,
+		MaxBackups:     1,
+		backupNameFunc: defaultBackupFunc(false),
 	}
 	defer l.Close()
 	b := []byte("boo!")
@@ -353,9 +356,10 @@ func TestCleanupExistingBackups(t *testing.T) {
 	isNil(err, t)
 
 	l := &Logger{
-		Filename:   filename,
-		MaxSize:    10,
-		MaxBackups: 1,
+		Filename:       filename,
+		MaxSize:        10,
+		MaxBackups:     1,
+		backupNameFunc: defaultBackupFunc(false),
 	}
 	defer l.Close()
 
@@ -383,9 +387,10 @@ func TestMaxAge(t *testing.T) {
 
 	filename := logFile(dir)
 	l := &Logger{
-		Filename: filename,
-		MaxSize:  10,
-		MaxAge:   1,
+		Filename:       filename,
+		MaxSize:        10,
+		MaxAge:         1,
+		backupNameFunc: defaultBackupFunc(false),
 	}
 	defer l.Close()
 	b := []byte("boo!")
@@ -471,7 +476,7 @@ func TestOldLogFiles(t *testing.T) {
 	err = ioutil.WriteFile(backup2, data, 07)
 	isNil(err, t)
 
-	l := &Logger{Filename: filename}
+	l := &Logger{Filename: filename, backupNameFunc: defaultBackupFunc(false)}
 	files, err := l.oldLogFiles()
 	isNil(err, t)
 	equals(2, len(files), t)
@@ -482,7 +487,7 @@ func TestOldLogFiles(t *testing.T) {
 }
 
 func TestTimeFromName(t *testing.T) {
-	l := &Logger{Filename: "/var/log/myfoo/foo.log"}
+	l := &Logger{Filename: "/var/log/myfoo/foo.log", backupNameFunc: defaultBackupFunc(false)}
 	prefix, ext := l.prefixAndExt()
 
 	tests := []struct {
@@ -511,9 +516,10 @@ func TestLocalTime(t *testing.T) {
 	defer os.RemoveAll(dir)
 
 	l := &Logger{
-		Filename:  logFile(dir),
-		MaxSize:   10,
-		LocalTime: true,
+		Filename:       logFile(dir),
+		MaxSize:        10,
+		LocalTime:      true,
+		backupNameFunc: defaultBackupFunc(true),
 	}
 	defer l.Close()
 	b := []byte("boo!")
@@ -538,9 +544,10 @@ func TestRotate(t *testing.T) {
 	filename := logFile(dir)
 
 	l := &Logger{
-		Filename:   filename,
-		MaxBackups: 1,
-		MaxSize:    100, // megabytes
+		Filename:       filename,
+		MaxBackups:     1,
+		MaxSize:        100, // megabytes
+		backupNameFunc: defaultBackupFunc(false),
 	}
 	defer l.Close()
 	b := []byte("boo!")
@@ -596,9 +603,10 @@ func TestCompressOnRotate(t *testing.T) {
 
 	filename := logFile(dir)
 	l := &Logger{
-		Compress: true,
-		Filename: filename,
-		MaxSize:  10,
+		Compress:       true,
+		Filename:       filename,
+		MaxSize:        10,
+		backupNameFunc: defaultBackupFunc(false),
 	}
 	defer l.Close()
 	b := []byte("boo!")
@@ -645,9 +653,10 @@ func TestCompressOnResume(t *testing.T) {
 
 	filename := logFile(dir)
 	l := &Logger{
-		Compress: true,
-		Filename: filename,
-		MaxSize:  10,
+		Compress:       true,
+		Filename:       filename,
+		MaxSize:        10,
+		backupNameFunc: defaultBackupFunc(false),
 	}
 	defer l.Close()
 

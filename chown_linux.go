@@ -1,4 +1,4 @@
-package lumberjack
+package glumberjack
 
 import (
 	"os"

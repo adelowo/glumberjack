@@ -3,7 +3,7 @@
 // Note that this is v2.0 of lumberjack, and should be imported using gopkg.in
 // thusly:
 //
-//   import "gopkg.in/natefinch/lumberjack.v2"
+//	import "gopkg.in/natefinch/lumberjack.v2"
 //
 // The package name remains simply lumberjack, and the code resides at
 // https://github.com/natefinch/lumberjack under the v2.0 branch.
@@ -19,7 +19,7 @@
 // Lumberjack assumes that only one process is writing to the output files.
 // Using the same lumberjack configuration from multiple processes on the same
 // machine will result in improper behavior.
-package lumberjack
+package glumberjack
 
 import (
 	"compress/gzip"
@@ -33,6 +33,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/ayinke-llc/hermes"
 )
 
 const (
@@ -66,7 +68,7 @@ var _ io.WriteCloser = (*Logger)(nil)
 // `/var/log/foo/server.log`, a backup created at 6:30pm on Nov 11 2016 would
 // use the filename `/var/log/foo/server-2016-11-04T18-30-00.000.log`
 //
-// Cleaning Up Old Log Files
+// # Cleaning Up Old Log Files
 //
 // Whenever a new logfile gets created, old log files may be deleted.  The most
 // recent files according to the encoded timestamp will be retained, up to a
@@ -107,6 +109,11 @@ type Logger struct {
 	// using gzip. The default is not to perform compression.
 	Compress bool `json:"compress" yaml:"compress"`
 
+	compressionType CompressionType
+
+	// backupNameFunc allows you dynamically configure the path to the backup files
+	backupNameFunc BackupNameGeneratorFunc
+
 	size int64
 	file *os.File
 	mu   sync.Mutex
@@ -127,6 +134,23 @@ var (
 	// to disk.
 	megabyte = 1024 * 1024
 )
+
+// New creates a logger that will be configured with the provided options
+func New(opts ...Option) (*Logger, error) {
+	l := &Logger{
+		backupNameFunc: defaultBackupFunc(true),
+	}
+
+	for _, opt := range opts {
+		opt(l)
+	}
+
+	if !l.compressionType.IsValid() {
+		return nil, errors.New("invalid/unsupported compression type")
+	}
+
+	return l, nil
+}
 
 // Write implements io.Writer.  If a write would cause the log file to be larger
 // than MaxSize, the file is closed, renamed to include a timestamp of the
@@ -217,8 +241,9 @@ func (l *Logger) openNew() error {
 	if err == nil {
 		// Copy the mode off the old logfile.
 		mode = info.Mode()
+
 		// move the existing file
-		newname := backupName(name, l.LocalTime)
+		newname := l.backupNameFunc(name)
 		if err := os.Rename(name, newname); err != nil {
 			return fmt.Errorf("can't rename log file: %s", err)
 		}
@@ -236,26 +261,10 @@ func (l *Logger) openNew() error {
 	if err != nil {
 		return fmt.Errorf("can't open new logfile: %s", err)
 	}
+
 	l.file = f
 	l.size = 0
 	return nil
-}
-
-// backupName creates a new filename from the given name, inserting a timestamp
-// between the filename and the extension, using the local time if requested
-// (otherwise UTC).
-func backupName(name string, local bool) string {
-	dir := filepath.Dir(name)
-	filename := filepath.Base(name)
-	ext := filepath.Ext(filename)
-	prefix := filename[:len(filename)-len(ext)]
-	t := currentTime()
-	if !local {
-		t = t.UTC()
-	}
-
-	timestamp := t.Format(backupTimeFormat)
-	return filepath.Join(dir, fmt.Sprintf("%s-%s%s", prefix, timestamp, ext))
 }
 
 // openExistingOrNew opens the logfile if it exists and if the current write
@@ -290,10 +299,11 @@ func (l *Logger) openExistingOrNew(writeLen int) error {
 
 // filename generates the name of the logfile from the current time.
 func (l *Logger) filename() string {
-	if l.Filename != "" {
+	if !hermes.IsStringEmpty(l.Filename) {
 		return l.Filename
 	}
-	name := filepath.Base(os.Args[0]) + "-lumberjack.log"
+
+	name := filepath.Base(os.Args[0]) + "-glumberjack.log"
 	return filepath.Join(os.TempDir(), name)
 }
 
